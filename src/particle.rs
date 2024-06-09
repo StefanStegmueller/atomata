@@ -1,6 +1,7 @@
 use three_d::{vec3, InnerSpace, Vector3};
 
 use crate::parameters::Parameters;
+use crate::persistence::StateVector;
 use crate::sphere::PositionableRender;
 
 pub struct Particle {
@@ -83,6 +84,15 @@ impl Particle {
 
     pub fn apply_friction(&mut self, friction: f32) {
         self.velocity *= 1.0 - friction;
+    }
+
+    pub fn to_state_vector(&self, bucket_size: f32) -> StateVector {
+        StateVector::new(
+            self.mass,
+            (self.position.x, self.position.y, self.position.z),
+            (self.velocity.x, self.velocity.y, self.velocity.z),
+            bucket_size,
+        )
     }
 
     fn compute_updated_position(&self, time_step: f32) -> Vector3<f32> {
@@ -172,6 +182,8 @@ mod tests {
             mass_green: 1.0,
             mass_blue: 1.0,
             max_velocity: 1000.0,
+            bucket_size: 1.0,
+            database_path: "particles_states.db".to_string(),
         };
 
         particle.update_position(&parameters);

@@ -1,9 +1,13 @@
 mod parameters;
 mod particle;
+mod persistence;
 mod sphere;
 
 use parameters::Parameters;
 use particle::Particle;
+use persistence::{
+    commit_transaction, create_transaction, migrate_to_latest, open_database, persist_state_count,
+};
 use sphere::Sphere;
 use three_d::{
     degrees,
@@ -60,7 +64,12 @@ pub fn run() {
         mass_green: 250.0,
         mass_blue: 1000.0,
         max_velocity: 20000.0,
+        database_path: "./particles_states.db3".to_string(),
+        bucket_size: 10.0,
     };
+
+    let mut connection = open_database(&parameters.database_path).unwrap();
+    migrate_to_latest(&mut connection).unwrap();
 
     let (mut red_particles, mut green_particles, mut blue_particles) =
         create_particles(&context, &parameters);
@@ -92,6 +101,7 @@ pub fn run() {
         apply_identity_forces(&mut blue_particles, parameters.gravity_constant);
         apply_identity_forces(&mut green_particles, parameters.gravity_constant);
 
+        let tx = create_transaction(&mut connection).unwrap();
         for particle in red_particles
             .iter_mut()
             .chain(green_particles.iter_mut())
@@ -99,7 +109,11 @@ pub fn run() {
         {
             particle.apply_friction(parameters.friction);
             particle.update_position(&parameters);
+
+            let state_vector = particle.to_state_vector(parameters.bucket_size);
+            persist_state_count(&state_vector, &tx).unwrap();
         }
+        commit_transaction(tx).unwrap();
 
         let mut panel_width = 0.0;
         gui.update(
